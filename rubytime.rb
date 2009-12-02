@@ -29,10 +29,11 @@ Bundler.require_env
 require 'date'
 require 'mechanize'
 require 'tempfile'
+require 'yaml'
 
 def read_with_default(prompt, default)
   puts("#{prompt}: [#{default}]")
-  result = gets
+  result = gets.strip
   result = default if result.strip.size == 0
   return result
 end
@@ -62,11 +63,11 @@ end
 
 def get_work_time_today
   uptime = %x[cat /proc/uptime].split.first.to_i
-	uptime_in_minutes = uptime / 60
-	uptime_in_minutes -= 45
-	uptime_in_minutes = uptime_in_minutes / 15 * 15
-	hours = uptime_in_minutes / 60
-	minutes = uptime_in_minutes % 60
+  uptime_in_minutes = uptime / 60
+  uptime_in_minutes -= 45
+  uptime_in_minutes = uptime_in_minutes / 15 * 15
+  hours = uptime_in_minutes / 60
+  minutes = uptime_in_minutes % 60
   return hours, minutes
 end
 
@@ -85,12 +86,113 @@ def get_work_time(date)
   return read_with_default('Input work time', time)
 end
 
+def config_file
+  File.expand_path("~/.rt")
+end
+
+def read_config
+  YAML.load_file(config_file) rescue {}
+end
+
+def save_config(config)
+  File.open(config_file, 'w+' ) do |out|
+    YAML.dump(config, out)
+  end
+end
+
+def get_from_config(config, prompt, group, value)
+  result = config_value(config, group, value)
+  unless result
+    puts prompt
+    result = gets.strip
+  end
+  set_config_value(config, group, value, result)
+  return result
+end
+
+def get_rubytime_login(config)
+  return get_from_config(config, 'Please input your rubytime login:', 'rubytime', 'login')
+end
+
+def get_rubytime_password(config)
+  return get_from_config(config, 'Please input your rubytime password:', 'rubytime', 'password')
+end
+
+def login_to_rubytime(agent, pass, user)
+  page = agent.get('http://rt.llp.pl/login')
+
+  # Fill out the login form
+  form = page.forms.detect{|f| f.action == '/login'}
+  raise "Form /login not found!" unless form
+  form.login = user
+  form.password = pass
+  agent.submit(form)
+end
+
+def config_value(config, group, value)
+  config[group] && config[group][value]
+end
+
+def set_config_value(config, group, value, v)
+  config[group] ||= {}
+  config[group][value] = v
+end
+
+def get_field_by_name(form, name)
+  field = form.fields.detect{|f| f.name == name}
+  raise "field #{name} not found!" unless field
+  return field
+end
+
+def get_project_to_select(agent, config)
+  page = agent.get('http://rt.llp.pl/activities/new')
+  form = page.forms.first
+  raise "Form not found!" unless form
+  select = form.fields.detect{|f| f.name == 'activity[project_id]'}
+  raise "Select not found!" unless select
+
+  print("Available projects:")
+  select.options.each_with_index do |o, idx|
+    printf("%2d) %s\n", idx+1, o.text)
+  end
+  selected = read_with_default('Select project', config_value(config, 'rubytime', 'project') || '1')
+  set_config_value(config, 'rubytime', 'project', selected)
+  selected_option = select.options[selected.to_i - 1]
+  puts
+  print("Selected RubyTime Project: #{selected_option.text}")
+  return form, select, selected_option
+end
+
+def submit_data_to_rubytime(agent, config, date, message, work_time)
+  form, select, selected_option = get_project_to_select(agent, config)
+  select.value = selected_option.value
+  date_field = get_field_by_name(form, 'activity[date]')
+  date_field.value = date
+  hours_field = get_field_by_name(form, 'activity[hours]')
+  hours_field.value = work_time
+  comment_field = get_field_by_name(form, 'activity[comments]')
+  comment_field.value = message
+  agent.submit(form)
+end
+
+def update_rubytime(date, work_time, message, config)
+  user = get_rubytime_login(config)
+  pass = get_rubytime_password(config)
+
+  agent = WWW::Mechanize.new
+  login_to_rubytime(agent, pass, user)
+  submit_data_to_rubytime(agent, config, date, message, work_time)
+end
+
 def main
   date = ARGV[0] ? Date.parse(ARGV[0]) : Date.today
+  config = read_config()
   msg = get_message(date)
   print('Your message:', msg)
   time = get_work_time(date)
   print("Work time: #{time}")
+  update_rubytime(date, time, msg, config)
+  save_config(config)
 end
 
 main()
