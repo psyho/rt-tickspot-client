@@ -12,7 +12,7 @@ def bundle_gems
   %x[gem bundle]
 end
 
-def print(text, data)
+def print(text, data = nil)
   puts '=================='
   puts text
   puts '=================='
@@ -29,6 +29,13 @@ Bundler.require_env
 require 'date'
 require 'mechanize'
 require 'tempfile'
+
+def read_with_default(prompt, default)
+  puts("#{prompt}: [#{default}]")
+  result = gets
+  result = default if result.strip.size == 0
+  return result
+end
 
 def is_git_repo?
   return system('git log 2> /dev/null > /dev/null')
@@ -53,10 +60,37 @@ def get_message(date)
   return get_edited_message(msg)
 end
 
+def get_work_time_today
+  uptime = %x[cat /proc/uptime].split.first.to_i
+	uptime_in_minutes = uptime / 60
+	uptime_in_minutes -= 45
+	uptime_in_minutes = uptime_in_minutes / 15 * 15
+	hours = uptime_in_minutes / 60
+	minutes = uptime_in_minutes % 60
+  return hours, minutes
+end
+
+def get_default_work_time
+  return 7, 15
+end
+
+def format_time(hours, minutes)
+  sprintf('%02d:%02d', hours, minutes)
+end
+
+def get_work_time(date)
+  hours, minutes = (date == Date.today ? get_work_time_today : get_default_work_time)
+  time = format_time(hours, minutes)
+  print("Calculated work time: #{time}")
+  return read_with_default('Input work time', time)
+end
+
 def main
   date = ARGV[0] ? Date.parse(ARGV[0]) : Date.today
   msg = get_message(date)
   print('Your message:', msg)
+  time = get_work_time(date)
+  print("Work time: #{time}")
 end
 
 main()
