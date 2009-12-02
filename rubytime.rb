@@ -30,6 +30,7 @@ require 'date'
 require 'mechanize'
 require 'tempfile'
 require 'yaml'
+require 'tickspot'
 
 def read_with_default(prompt, default)
   puts("#{prompt}: [#{default}]")
@@ -184,6 +185,34 @@ def update_rubytime(date, work_time, message, config)
   submit_data_to_rubytime(agent, config, date, message, work_time)
 end
 
+def get_tickspot_login(config)
+  return get_from_config(config, 'Please input your TickSpot login:', 'tickspot', 'login')
+end
+
+def get_tickspot_password(config)
+  return get_from_config(config, 'Please input your TickSpot password:', 'tickspot', 'password')
+end
+
+def login_to_tickspot(agent, pass, user)
+  page = agent.get('https://truvolabs.tickspot.com/login')
+
+  form = page.forms.detect{|f| f.action == '/login'}
+  raise "Form /login not found!" unless form
+  form.user_login = user
+  form.user_password = pass
+
+  agent.submit(form)
+end
+
+def update_tickspot(date, work_time, message, config)
+  user = get_tickspot_login(config)
+  pass = get_tickspot_password(config)
+
+  ts = Tickspot.new("truvolabs.tickspot.com", user, pass)
+
+  p ts.projects
+end
+
 def main
   date = ARGV[0] ? Date.parse(ARGV[0]) : Date.today
   config = read_config()
@@ -192,6 +221,7 @@ def main
   time = get_work_time(date)
   print("Work time: #{time}")
   update_rubytime(date, time, msg, config)
+  update_tickspot(date, '01:00', 'test', config)
   save_config(config)
 end
 
