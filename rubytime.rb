@@ -221,6 +221,41 @@ def tickspot_request(user, pass, domain, path, params = {})
   return result
 end
 
+def parse_client(project_elem)
+  client_id = project_elem.css('client_id').first.content
+  client_name = project_elem.css('client_name').first.content
+  client = {:id => client_id, :name => client_name, :projects => []}
+  return client
+end
+
+def parse_project(project_elem)
+  id = project_elem.css('id').first.content
+  name = project_elem.css('name').first.content
+  project = {:id => id, :name => name, :tasks => []}
+  return project
+end
+
+def parse_task(task)
+  task_id = task.css('id').first.content
+  task_name = task.css('name').first.content
+  task = {:id => task_id, :name => task_name}
+  return task
+end
+
+def parse_tickspot_clients(doc)
+  clients = {}
+  doc.css('project').each do |project_elem|
+    client = parse_client(project_elem)
+    clients[client[:id]] ||= client
+    project = parse_project(project_elem)
+    clients[client[:id]][:projects] << project
+    project_elem.css('task').each do |task|
+      project[:tasks] << parse_task(task)
+    end
+  end
+  return clients
+end
+
 def update_tickspot(date, work_time, message, config)
   user = get_tickspot_login(config)
   pass = get_tickspot_password(config)
@@ -229,21 +264,7 @@ def update_tickspot(date, work_time, message, config)
   txt = tickspot_request(user, pass, domain, 'projects', :open => true)
   doc = Nokogiri::XML.parse(txt)
 
-  clients = {}
-  doc.css('project').each do |project_elem|
-    client_id = project_elem.css('client_id').first.content
-    client_name = project_elem.css('client_name').first.content
-    clients[client_id] = {:id => client_id, :name => client_name, :projects => []} unless clients[client_id]
-    id = project_elem.css('id').first.content
-    name = project_elem.css('name').first.content
-    project = {:id => id, :name => name, :tasks => []}
-    clients[client_id][:projects] << project
-    project_elem.css('task').each do |task|
-      task_id = task.css('id').first.content
-      task_name = task.css('name').first.content
-      project[:tasks] << {:id => task_id, :name => task_name}
-    end
-  end
+  clients = parse_tickspot_clients(doc)
 
   print('Clients')
   clients.each do |id, client|
@@ -258,7 +279,6 @@ def update_tickspot(date, work_time, message, config)
     end
   end
 
-#  p doc.search('//project/').collect{|elem| {:id => (elem/'id').inner_html.strip, :name => (elem/'name').inner_html.strip} }
 end
 
 def main
