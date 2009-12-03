@@ -227,27 +227,34 @@ def update_tickspot(date, work_time, message, config)
   domain = 'truvolabs.tickspot.com'
 
   txt = tickspot_request(user, pass, domain, 'projects', :open => true)
-  puts txt
   doc = Nokogiri::XML.parse(txt)
 
   clients = {}
-  doc.css('project').each do |project|
-    client_id = project.css('client_id').first.content
-    client_name = project.css('client_name').first.content
+  doc.css('project').each do |project_elem|
+    client_id = project_elem.css('client_id').first.content
+    client_name = project_elem.css('client_name').first.content
     clients[client_id] = {:id => client_id, :name => client_name, :projects => []} unless clients[client_id]
-    id = project.css('id').first.content
-    name = project.css('name').first.content
-    project = {:id => id, :name => name}
+    id = project_elem.css('id').first.content
+    name = project_elem.css('name').first.content
+    project = {:id => id, :name => name, :tasks => []}
     clients[client_id][:projects] << project
+    project_elem.css('task').each do |task|
+      task_id = task.css('id').first.content
+      task_name = task.css('name').first.content
+      project[:tasks] << {:id => task_id, :name => task_name}
+    end
   end
 
   print('Clients')
   clients.each do |id, client|
-    puts "id: #{client[:id]}"
-    puts "name: #{client[:name]}"
+    puts "#{client[:id]}: #{client[:name]}"
     puts "projects:"
     client[:projects].each do |project|
-      puts "#{project[:id]}: #{project[:name]}"
+      puts "\t#{project[:id]}: #{project[:name]}"
+      puts "\tTasks"
+      project[:tasks].each do |task|
+        puts "\t\t#{task[:id]}: #{task[:name]}"
+      end
     end
   end
 
