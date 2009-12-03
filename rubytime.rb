@@ -30,7 +30,8 @@ require 'date'
 require 'mechanize'
 require 'tempfile'
 require 'yaml'
-require 'tickspot'
+require 'net/http'
+require 'nokogiri'
 
 def read_with_default(prompt, default)
   puts("#{prompt}: [#{default}]")
@@ -204,23 +205,51 @@ def login_to_tickspot(agent, pass, user)
   agent.submit(form)
 end
 
+def tickspot_request(user, pass, domain, path, params = {})
+  request = Net::HTTP::Post.new("/api/" + path)
+  request.form_data = {
+      'email' => user,
+      'password' => pass
+  }.merge(params)
+
+  result = nil
+  Net::HTTP.new(domain).start {|http|
+    response = http.request(request)
+#    result = Hpricot.XML(response.body)
+    result = response.body
+  }
+  return result
+end
+
 def update_tickspot(date, work_time, message, config)
   user = get_tickspot_login(config)
   pass = get_tickspot_password(config)
+  domain = 'truvolabs.tickspot.com'
 
-  ts = Tickspot.new("truvolabs.tickspot.com", user, pass)
+  txt = tickspot_request(user, pass, domain, 'projects', :open => true)
+  puts txt
+  doc = Nokogiri::XML.parse(txt)
 
-  p ts.projects
+  clients = {}
+  doc.css('project').each do |project|
+    client_id = project.css('client_id').first.content
+    client_name = project.css('client_name').first.content
+    clients[client_id] = client_name
+  end
+
+  print('Clients', clients.collect{|id, name| "#{id} #{name}"}.join("\n"))
+
+#  p doc.search('//project/').collect{|elem| {:id => (elem/'id').inner_html.strip, :name => (elem/'name').inner_html.strip} }
 end
 
 def main
   date = ARGV[0] ? Date.parse(ARGV[0]) : Date.today
   config = read_config()
-  msg = get_message(date)
-  print('Your message:', msg)
-  time = get_work_time(date)
-  print("Work time: #{time}")
-  update_rubytime(date, time, msg, config)
+#  msg = get_message(date)
+#  print('Your message:', msg)
+#  time = get_work_time(date)
+#  print("Work time: #{time}")
+#  update_rubytime(date, time, msg, config)
   update_tickspot(date, '01:00', 'test', config)
   save_config(config)
 end
