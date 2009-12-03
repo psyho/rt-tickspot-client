@@ -33,8 +33,9 @@ require 'yaml'
 require 'net/http'
 require 'nokogiri'
 
-def read_with_default(prompt, default)
-  puts("#{prompt}: [#{default}]")
+def read_with_default(prompt, default, explain = nil)
+  explain = "(#{explain})" if explain
+  puts("#{prompt}: [#{default}]#{explain}")
   result = gets.strip
   result = default if result.strip.size == 0
   return result
@@ -165,7 +166,8 @@ def get_project_to_select(agent, config)
   select.options.each_with_index do |o, idx|
     printf("%2d) %s\n", idx+1, o.text)
   end
-  selected = read_with_default('Select project', config_value(config, 'rubytime', 'project') || '1')
+  selected = config_value(config, 'rubytime', 'project') || '1'
+  selected = read_with_default('Select project', selected, select.options[selected.to_i-1].text)
   set_config_value(config, 'rubytime', 'project', selected)
   selected_option = select.options[selected.to_i - 1]
   puts
@@ -281,7 +283,7 @@ def get_tickspot_selected_id (config, collection, text)
         selected_idx = (idx+1).to_s
       end
     end
-    selected_idx = read_with_default("Select #{text.downcase}", selected_idx)
+    selected_idx = read_with_default("Select #{text.downcase}", selected_idx, collection[selected_idx.to_i-1][:name])
     selected_id = collection[selected_idx.to_i-1][:id]
   end
   set_config_value(config, 'tickspot', text_id, selected_id)
