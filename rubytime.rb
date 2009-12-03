@@ -138,6 +138,8 @@ end
 def set_config_value(config, group, value, v)
   config[group] ||= {}
   config[group][value] = v
+  save_config(config)
+  v
 end
 
 def get_field_by_name(form, name)
@@ -148,11 +150,13 @@ end
 
 def get_project_to_select(agent, config)
   page = agent.get('http://rt.llp.pl/activities/new')
+  page.parser.encoding = 'UTF-8' # doesn't always detect it for some reason
+
   form = page.forms.first
   raise "Form not found!" unless form
   select = form.fields.detect{|f| f.name == 'activity[project_id]'}
   raise "Select not found!" unless select
-
+  
   print("Available projects:")
   select.options.each_with_index do |o, idx|
     printf("%2d) %s\n", idx+1, o.text)
@@ -215,8 +219,9 @@ def tickspot_request(user, pass, domain, path, params = {})
   result = nil
   Net::HTTP.new(domain).start {|http|
     response = http.request(request)
-#    result = Hpricot.XML(response.body)
     result = response.body
+    code = response.code.to_i
+    raise "Request failed with code: #{code} and message #{response.body}" unless code < 300 && code >= 200
   }
   return result
 end
@@ -256,6 +261,32 @@ def parse_tickspot_clients(doc)
   return clients
 end
 
+def get_tickspot_selected_id (config, collection, text)
+  text_id = "#{text.downcase}_id"
+  if collection.size == 1
+    print("#{text}: #{collection.first[:name]}")
+    selected_id = collection.first[:id]
+  else
+    selected_id = config_value(config, 'tickspot', text_id)
+    selected_idx = '1'
+
+    print("#{text}s")
+    collection.each_with_index do |p, idx|
+      puts "#{idx+1}) #{p[:name]}"
+      if p[:id] == selected_id
+        selected_idx = (idx+1).to_s
+      end
+    end
+    selected_idx = read_with_default("Select #{text.downcase}", selected_idx)
+    selected_id = collection[selected_idx.to_i-1][:id]
+  end
+  set_config_value(config, 'tickspot', text_id, selected_id)
+
+  selected = collection.detect{|obj| obj[:id] == selected_id}
+
+  return selected_id, selected
+end
+
 def update_tickspot(date, work_time, message, config)
   user = get_tickspot_login(config)
   pass = get_tickspot_password(config)
@@ -265,31 +296,23 @@ def update_tickspot(date, work_time, message, config)
   doc = Nokogiri::XML.parse(txt)
 
   clients = parse_tickspot_clients(doc)
+  client_id, client = get_tickspot_selected_id(config, clients.values, 'Client')
+  project_id, project = get_tickspot_selected_id(config, client[:projects], 'Project')
+  task_id, task = get_tickspot_selected_id(config, project[:tasks], 'Task')
 
-  print('Clients')
-  clients.each do |id, client|
-    puts "#{client[:id]}: #{client[:name]}"
-    puts "projects:"
-    client[:projects].each do |project|
-      puts "\t#{project[:id]}: #{project[:name]}"
-      puts "\tTasks"
-      project[:tasks].each do |task|
-        puts "\t\t#{task[:id]}: #{task[:name]}"
-      end
-    end
-  end
-
+  print('Selected values', "Client: #{client[:name]}\nProject: #{project[:name]}\nTask: #{task[:name]}")
+  tickspot_request(user, pass, domain, 'create_entry', :task_id => task_id, :hours => work_time, :date => date, :notes => message)
 end
 
 def main
   date = ARGV[0] ? Date.parse(ARGV[0]) : Date.today
   config = read_config()
-#  msg = get_message(date)
-#  print('Your message:', msg)
-#  time = get_work_time(date)
-#  print("Work time: #{time}")
-#  update_rubytime(date, time, msg, config)
-  update_tickspot(date, '01:00', 'test', config)
+  msg = get_message(date)
+  print('Your message:', msg)
+  time = get_work_time(date)
+  print("Work time: #{time}")
+  update_rubytime(date, time, msg, config)
+  update_tickspot(date, time, msg, config)
   save_config(config)
 end
 
