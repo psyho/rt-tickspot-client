@@ -44,9 +44,13 @@ def is_git_repo?
   return system('git log 2> /dev/null > /dev/null')
 end
 
+def format_date(date)
+  "\"#{date.asctime}\""
+end
+
 def get_commit_messages(date)
   day_after = date+1
-  return %x[git log --all --no-merges --reverse --pretty=format:"%ad: %s%n%b" --since=#{date} --until=#{day_after} --author="`git config --get user.name`"]
+  return %x[git log --all --no-merges --reverse --pretty=format:"%ad: %s%n%b" --since=#{format_date(date)} --until=#{format_date(day_after)} --author="`git config --get user.name`"]
 end
 
 def get_edited_message(msg)
