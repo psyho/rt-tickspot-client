@@ -234,10 +234,22 @@ def update_tickspot(date, work_time, message, config)
   doc.css('project').each do |project|
     client_id = project.css('client_id').first.content
     client_name = project.css('client_name').first.content
-    clients[client_id] = client_name
+    clients[client_id] = {:id => client_id, :name => client_name, :projects => []} unless clients[client_id]
+    id = project.css('id').first.content
+    name = project.css('name').first.content
+    project = {:id => id, :name => name}
+    clients[client_id][:projects] << project
   end
 
-  print('Clients', clients.collect{|id, name| "#{id} #{name}"}.join("\n"))
+  print('Clients')
+  clients.each do |id, client|
+    puts "id: #{client[:id]}"
+    puts "name: #{client[:name]}"
+    puts "projects:"
+    client[:projects].each do |project|
+      puts "#{project[:id]}: #{project[:name]}"
+    end
+  end
 
 #  p doc.search('//project/').collect{|elem| {:id => (elem/'id').inner_html.strip, :name => (elem/'name').inner_html.strip} }
 end
