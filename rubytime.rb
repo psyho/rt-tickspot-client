@@ -86,6 +86,8 @@ module Psyho
       else
         return value
       end
+    rescue OpenSSL::Cipher::CipherError => e
+      raise "Wrong password!"
     end
   end
 end
