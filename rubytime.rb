@@ -9,7 +9,7 @@ def install_bundler
 end
 
 def bundle_gems
-  %x[gem bundle]
+  %x[cd #{File.expand_path(File.dirname(__FILE__))}; gem bundle]
 end
 
 def print(text, data = nil)
