@@ -32,6 +32,7 @@ require 'tempfile'
 require 'yaml'
 require 'net/http'
 require 'nokogiri'
+require "highline/import"
 
 def read_with_default(prompt, default, explain = nil)
   explain = "(#{explain})" if explain
@@ -107,11 +108,15 @@ def save_config(config)
   end
 end
 
-def get_from_config(config, prompt, group, value)
+def get_from_config(config, prompt, group, value, mask_input = false)
   result = config_value(config, group, value)
   unless result
-    puts prompt
-    result = gets.strip
+    if mask_input
+      result = ask(prompt) { |q| q.echo = "*" }
+    else
+      puts prompt
+      result = gets.strip
+    end
   end
   set_config_value(config, group, value, result)
   return result
@@ -122,7 +127,7 @@ def get_rubytime_login(config)
 end
 
 def get_rubytime_password(config)
-  return get_from_config(config, 'Please input your rubytime password:', 'rubytime', 'password')
+  return get_from_config(config, 'Please input your rubytime password: ', 'rubytime', 'password', true)
 end
 
 def login_to_rubytime(agent, pass, user)
@@ -201,7 +206,7 @@ def get_tickspot_login(config)
 end
 
 def get_tickspot_password(config)
-  return get_from_config(config, 'Please input your TickSpot password:', 'tickspot', 'password')
+  return get_from_config(config, 'Please input your TickSpot password: ', 'tickspot', 'password', true)
 end
 
 def login_to_tickspot(agent, pass, user)
