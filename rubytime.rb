@@ -33,6 +33,62 @@ require 'yaml'
 require 'net/http'
 require 'nokogiri'
 require "highline/import"
+require 'ezcrypto'
+
+module Psyho
+  class Config
+    attr_accessor :password
+    attr_accessor :data
+
+    def initialize(password)
+      @password = password
+      @data = {}
+    end
+
+    def save(file_name)
+      File.open(file_name, 'w+' ) do |out|
+        YAML.dump(data, out)
+      end
+    end
+
+    def load_from_file(file_name)
+      @data = YAML.load_file(file_name) rescue {}
+    end
+
+    def [](group, value)
+      stored = data[group] && data[group][value]
+      return decrypt(stored)
+    end
+
+    def []=(group, value, to_set)
+      data[group] ||= {}
+      data[group][value] = to_set
+    end
+
+    def encrypt(value)
+      return crypted_prefix+key.encrypt64(value).strip
+    end
+
+    protected
+
+    def key
+      @key ||= EzCrypto::Key.with_password(password, 'sup3rs@17ys@17')
+    end
+
+    def crypted_prefix
+      '__crypted__'
+    end
+
+    def decrypt(value)
+      if value.is_a?(String) && value.start_with?(crypted_prefix)
+        encrypted = value.gsub(/^#{crypted_prefix}/, '').strip
+        return key.decrypt64(encrypted)
+      else
+        return value
+      end
+    end
+  end
+end
 
 def read_with_default(prompt, default, explain = nil)
   explain = "(#{explain})" if explain
@@ -98,14 +154,8 @@ def config_file
   File.expand_path("~/.rt")
 end
 
-def read_config
-  YAML.load_file(config_file) rescue {}
-end
-
 def save_config(config)
-  File.open(config_file, 'w+' ) do |out|
-    YAML.dump(config, out)
-  end
+  config.save(config_file)
 end
 
 def get_from_config(config, prompt, group, value, mask_input = false)
@@ -118,7 +168,7 @@ def get_from_config(config, prompt, group, value, mask_input = false)
       result = gets.strip
     end
   end
-  set_config_value(config, group, value, result)
+  set_config_value(config, group, value, result, mask_input)
   return result
 end
 
@@ -142,12 +192,11 @@ def login_to_rubytime(agent, pass, user)
 end
 
 def config_value(config, group, value)
-  config[group] && config[group][value]
+  config[group, value]
 end
 
-def set_config_value(config, group, value, v)
-  config[group] ||= {}
-  config[group][value] = v
+def set_config_value(config, group, value, v, encrypt = false)
+  config[group, value] = (encrypt ? config.encrypt(v) : v)
   save_config(config)
   v
 end
@@ -317,7 +366,9 @@ end
 
 def main
   date = ARGV[0] ? Date.parse(ARGV[0]) : Date.today
-  config = read_config()
+  password = ask('Please enter password to unlock config:') {|q| q.echo = '*'}
+  config = Psyho::Config.new(password)
+  config.load_from_file(config_file)
   msg = get_message(date)
   print('Your message:', msg)
   time = get_work_time(date)
