@@ -286,24 +286,28 @@ def tickspot_request(user, pass, domain, path, params = {})
   return result
 end
 
+def fix_html(str)
+  return str.gsub('&amp;', '&')
+end
+
 def parse_client(project_elem)
   client_id = project_elem.css('client_id').first.content
   client_name = project_elem.css('client_name').first.content
-  client = {:id => client_id, :name => client_name, :projects => []}
+  client = {:id => client_id, :name => fix_html(client_name), :projects => []}
   return client
 end
 
 def parse_project(project_elem)
   id = project_elem.css('id').first.content
   name = project_elem.css('name').first.content
-  project = {:id => id, :name => name, :tasks => []}
+  project = {:id => id, :name => fix_html(name), :tasks => []}
   return project
 end
 
 def parse_task(task)
   task_id = task.css('id').first.content
   task_name = task.css('name').first.content
-  task = {:id => task_id, :name => task_name}
+  task = {:id => task_id, :name => fix_html(task_name)}
   return task
 end
 
