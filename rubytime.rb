@@ -93,7 +93,7 @@ end
 def read_with_default(prompt, default, explain = nil)
   explain = "(#{explain})" if explain
   puts("#{prompt}: [#{default}]#{explain}")
-  result = gets.strip
+  result = STDIN.gets.strip
   result = default if result.strip.size == 0
   return result
 end
@@ -165,7 +165,7 @@ def get_from_config(config, prompt, group, value, mask_input = false)
       result = ask(prompt) { |q| q.echo = "*" }
     else
       puts prompt
-      result = gets.strip
+      result = STDIN.gets.strip
     end
   end
   set_config_value(config, group, value, result, mask_input)
