@@ -113,18 +113,18 @@ def get_commit_messages(date)
   return %x[git log --all --no-merges --reverse --pretty=format:"%ad: %s%n%b" --since=#{format_date(date)} --until=#{format_date(day_after)} --author="`git config --get user.name`"]
 end
 
-def get_edited_message(msg)
+def get_edited_message(msg, editor)
   temp = Tempfile.new('message')
   file = File.new(temp.path, 'w+')
   file.puts msg
   file.close
-  system("nano #{File.expand_path(file.path)}")
+  system("#{editor} #{File.expand_path(file.path)}")
   return File.read(temp.path)
 end
 
-def get_message(date)
+def get_message(date, editor)
   msg = is_git_repo? ? get_commit_messages(date) : '<not a git repo>'
-  return get_edited_message(msg)
+  return get_edited_message(msg, editor)
 end
 
 def get_work_time_today
@@ -370,12 +370,22 @@ def update_tickspot(date, work_time, message, config)
   tickspot_request(user, pass, domain, 'create_entry', :task_id => task_id, :hours => work_time, :date => date, :notes => message)
 end
 
+def get_editor_command(config)
+  unless config['editor', 'command']
+    config['editor', 'command'] = read_with_default("Type your editor command", "nano")
+    save_config(config)
+  end
+  editor = config['editor', 'command']
+  return editor
+end
+
 def main
   date = ARGV[0] ? Date.parse(ARGV[0]) : Date.today
   password = ask('Please enter password to unlock config:') {|q| q.echo = '*'}
   config = Psyho::Config.new(password)
   config.load_from_file(config_file)
-  msg = get_message(date)
+  editor = get_editor_command(config)
+  msg = get_message(date, editor)
   print('Your message:', msg)
   time = get_work_time(date)
   print("Work time: #{time}")
