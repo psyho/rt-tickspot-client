@@ -9,7 +9,7 @@ def install_bundler
 end
 
 def bundle_gems
-  %x[cd #{File.expand_path(File.dirname(__FILE__))}; gem bundle]
+  %x[cd #{File.expand_path(File.dirname(__FILE__))}; gem bundle; touch .bundled]
 end
 
 def print(text, data = nil)
@@ -20,8 +20,20 @@ def print(text, data = nil)
   puts
 end
 
+def bundled_flag_file
+  File.expand_path(File.join(File.dirname(__FILE__), '.bundled'))
+end
+
+def gemfile_path
+  File.expand_path(File.join(File.dirname(__FILE__), 'Gemfile'))
+end
+
+def skip_gem_bundling?
+  File.exist?(bundled_flag_file) && File.mtime(bundled_flag_file) >= File.mtime(gemfile_path)
+end
+
 print('Installing bundler', install_bundler()) unless bundler_installed?
-print('Bundling gems', bundle_gems)
+print('Bundling gems', bundle_gems) unless skip_gem_bundling?
 
 require File.expand_path(File.join(File.dirname(__FILE__), 'vendor', 'gems', 'environment'))
 Bundler.require_env
